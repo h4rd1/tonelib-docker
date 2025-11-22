@@ -1,0 +1,84 @@
+version: '3'
+
+services:
+  tonelib-gfx:
+    build:
+      context: .
+      args:
+        USER_ID: ${USER_ID:-1000}
+        GROUP_ID: ${GROUP_ID:-1000}
+    image: h4rdl/tonelib-gfx:latest
+    container_name: tonelib-gfx
+
+    # Support for graphical interface via X11
+    environment:
+      - DISPLAY=${DISPLAY}
+      - QT_X11_NO_MITSHM=1
+      - QT_LOGGING_RULES=*.debug=false
+      # PulseAudio configuration
+      - PULSE_SERVER=unix:/run/user/${USER_ID:-1000}/pulse/native
+      - PULSE_LATENCY_MSEC=20
+      # JACK configuration (if available)
+      - JACK_DEFAULT_SERVER=default
+      # OpenGL configuration
+      - LIBGL_ALWAYS_SOFTWARE=0
+      - MESA_GL_VERSION_OVERRIDE=3.3
+
+    volumes:
+      # X11 socket for graphical interface
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+
+      # PulseAudio socket for audio
+      - /run/user/${USER_ID:-1000}/pulse:/run/user/${USER_ID:-1000}/pulse:ro
+
+      # JACK socket for low latency audio (if available)
+      - /dev/shm:/dev/shm
+
+      # Home directory of ToneLib (files, recordings, backing tracks, IRs, presets)
+      - ${HOME}/tonelib:/home/tonelib:rw
+
+      # Persistent settings and presets of ToneLib-GFX (overwrites subfolders in home)
+      - tonelib-config:/home/tonelib/.config
+      - tonelib-data:/home/tonelib/.local
+
+    # Access to audio devices and GPU
+    devices:
+      - /dev/snd:/dev/snd
+      - /dev/dri:/dev/dri
+
+    # Add user to host's audio groups
+    group_add:
+      - audio
+      - "29"  # GID of the audio group (default on most systems)
+
+    # Capabilities for real-time audio (better performance)
+    cap_add:
+      - SYS_NICE
+      - IPC_LOCK
+
+    # Limits for real-time audio
+    ulimits:
+      rtprio: 95
+      memlock:
+        soft: -1
+        hard: -1
+
+    # Required for access to audio devices
+    privileged: false
+
+    # Share host's IPC (necessary for transparency/popups)
+    ipc: host
+
+    # Increase shared memory (fixes graphic corruption and JACK issues)
+    shm_size: 512mb
+
+    # Restart policy
+    restart: "no"
+
+    # Keep container active even if app closes
+    stdin_open: true
+    tty: true
+
+volumes:
+  tonelib-config:
+  tonelib-data:
